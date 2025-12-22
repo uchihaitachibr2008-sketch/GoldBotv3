@@ -1,7 +1,8 @@
-import discord
 from discord.ext import commands
 from discord import app_commands
-import asyncio
+import discord
+
+GUILD_ID = 1447592173913509919
 
 ADM_ID = 969976402571063397
 
@@ -76,3 +77,4 @@ class Ticket(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Ticket(bot))
+
