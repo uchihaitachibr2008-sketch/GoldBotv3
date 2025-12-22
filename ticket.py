@@ -24,12 +24,22 @@ class TicketView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button
     ):
+        # responde imediatamente (obrigatório)
         await interaction.response.send_message(
-            "⏳ Ticket será fechado em 10 segundos...",
+            "⏳ Ticket será fechado em **10 segundos**...",
             ephemeral=True
         )
+
+        # espera
         await asyncio.sleep(10)
-        await interaction.channel.delete()
+
+        # tenta deletar o canal
+        try:
+            await interaction.channel.delete(reason="Ticket encerrado")
+        except discord.Forbidden:
+            print("❌ Sem permissão para deletar o canal")
+        except Exception as e:
+            print(f"❌ Erro ao deletar ticket: {e}")
 
 
 # ===============================
@@ -66,6 +76,10 @@ class Ticket(commands.Cog):
                 guild.default_role: discord.PermissionOverwrite(read_messages=False),
                 interaction.user: discord.PermissionOverwrite(read_messages=True),
                 guild.get_member(ADM_ID): discord.PermissionOverwrite(read_messages=True),
+                guild.me: discord.PermissionOverwrite(
+                    read_messages=True,
+                    manage_channels=True
+                )
             }
         )
 
@@ -75,7 +89,7 @@ class Ticket(commands.Cog):
                 f"👤 **Usuário:** {interaction.user.mention}\n"
                 f"📝 **Motivo:** {motivo}\n\n"
                 "🔔 Um administrador irá te atender.\n"
-                "Quando finalizar, clique no botão abaixo para fechar."
+                "Clique no botão abaixo para fechar o ticket."
             ),
             color=discord.Color.blue()
         )
@@ -83,7 +97,7 @@ class Ticket(commands.Cog):
         await canal.send(embed=embed, view=TicketView())
 
         await interaction.response.send_message(
-            f"📂 Ticket criado com sucesso em {canal.mention}",
+            f"📂 Ticket criado em {canal.mention}",
             ephemeral=True
         )
 
