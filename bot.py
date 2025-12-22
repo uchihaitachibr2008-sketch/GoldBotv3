@@ -5,19 +5,12 @@ import asyncio
 
 from database import init_db
 
-# ===============================
-# CONFIGURAÇÕES
-# ===============================
-
 GUILD_ID = 1447592173913509919
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 INTENTS = discord.Intents.default()
 INTENTS.members = True
 
-# ===============================
-# BOT
-# ===============================
 
 class BotEconomia(commands.Bot):
     def __init__(self):
@@ -28,8 +21,6 @@ class BotEconomia(commands.Bot):
 
     async def setup_hook(self):
         await init_db()
-
-        guild = discord.Object(id=GUILD_ID)
 
         extensoes = [
             "economia",
@@ -47,22 +38,22 @@ class BotEconomia(commands.Bot):
                 await self.load_extension(ext)
                 print(f"✅ {ext} carregado")
             except Exception as e:
-                print(f"❌ Erro ao carregar {ext}: {e}")
+                print(f"❌ ERRO em {ext}: {e}")
 
-        # 🔒 Sincroniza APENAS no servidor
-        await self.tree.sync(guild=guild)
-        print("🌐 Comandos sincronizados apenas no servidor")
+        guild = discord.Object(id=GUILD_ID)
+
+        # 🔥 sincroniza TUDO no servidor
+        synced = await self.tree.sync(guild=guild)
+        print(f"🌐 {len(synced)} comandos sincronizados")
 
     async def on_ready(self):
         print(f"🤖 Bot conectado como {self.user}")
 
-# ===============================
-# START
-# ===============================
 
 async def main():
     bot = BotEconomia()
     await bot.start(TOKEN)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
