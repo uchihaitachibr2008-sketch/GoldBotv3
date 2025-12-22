@@ -7,10 +7,18 @@ import threading
 from flask import Flask
 from database import init_db
 
+# ===============================
+# CONFIGURAÇÕES
+# ===============================
+
 GUILD_ID = 1447592173913509919
+TOKEN = os.getenv("DISCORD_TOKEN")
+
+INTENTS = discord.Intents.default()
+INTENTS.members = True
 
 # ===============================
-# SERVIDOR WEB (RENDER)
+# SERVIDOR HTTP (RENDER)
 # ===============================
 
 app = Flask(__name__)
@@ -19,38 +27,40 @@ app = Flask(__name__)
 def home():
     return "Bot online"
 
-
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-
 # ===============================
-# BOT DISCORD
+# BOT
 # ===============================
 
-TOKEN = os.getenv("DISCORD_TOKEN")
-
-intents = discord.Intents.default()
-intents.members = True
-
-
-class GoldBot(commands.Bot):
+class BotEconomia(commands.Bot):
     def __init__(self):
         super().__init__(
             command_prefix="!",
-            intents=intents
+            intents=INTENTS
         )
 
     async def setup_hook(self):
+        # Banco de dados
         await init_db()
 
-        # ❗ LIMPA COMANDOS GLOBAIS (ISS0 É O PULO DO GATO)
+        # 🔒 REMOVE QUALQUER COMANDO GLOBAL
         self.tree.clear_commands(guild=None)
+
+        # 🔥 REGISTRO APENAS NO GUILD
+        guild = discord.Object(id=GUILD_ID)
 
         extensoes = [
             "economia",
-            "ticket"
+            "x1",
+            "missoes",
+            "compras",
+            "saque",
+            "cacar",
+            "ticket",
+            "rank_saldo"
         ]
 
         for ext in extensoes:
@@ -60,21 +70,20 @@ class GoldBot(commands.Bot):
             except Exception as e:
                 print(f"❌ Erro ao carregar {ext}: {e}")
 
-        # 🔥 SINCRONIZA APENAS NO SEU SERVIDOR
-        guild = discord.Object(id=GUILD_ID)
+        # 🔁 SINCRONIZA APENAS NO SERVIDOR
         await self.tree.sync(guild=guild)
+        print("🌐 Comandos sincronizados apenas no servidor")
 
-        print("🌐 Comandos sincronizados no servidor")
+    async def on_ready(self):
+        print(f"🤖 Bot conectado como {self.user}")
 
+# ===============================
+# START
+# ===============================
 
 async def start_bot():
-    bot = GoldBot()
+    bot = BotEconomia()
     await bot.start(TOKEN)
-
-
-# ===============================
-# MAIN
-# ===============================
 
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
