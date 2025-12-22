@@ -43,13 +43,8 @@ class BotEconomia(commands.Bot):
         )
 
     async def setup_hook(self):
-        # Banco de dados
         await init_db()
 
-        # 🔒 REMOVE QUALQUER COMANDO GLOBAL
-        self.tree.clear_commands(guild=None)
-
-        # 🔥 REGISTRO APENAS NO GUILD
         guild = discord.Object(id=GUILD_ID)
 
         extensoes = [
@@ -70,9 +65,9 @@ class BotEconomia(commands.Bot):
             except Exception as e:
                 print(f"❌ Erro ao carregar {ext}: {e}")
 
-        # 🔁 SINCRONIZA APENAS NO SERVIDOR
+        # 🔥 REGISTRA SOMENTE NO SERVIDOR
         await self.tree.sync(guild=guild)
-        print("🌐 Comandos sincronizados apenas no servidor")
+        print("🌐 Comandos sincronizados APENAS no servidor")
 
     async def on_ready(self):
         print(f"🤖 Bot conectado como {self.user}")
