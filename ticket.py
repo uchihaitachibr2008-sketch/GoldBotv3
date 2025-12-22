@@ -1,11 +1,15 @@
+import discord
 from discord.ext import commands
 from discord import app_commands
-import discord
+import asyncio
 
 GUILD_ID = 1447592173913509919
-
 ADM_ID = 969976402571063397
 
+
+# ===============================
+# VIEW DO BOTÃO
+# ===============================
 
 class TicketView(discord.ui.View):
     def __init__(self):
@@ -21,19 +25,28 @@ class TicketView(discord.ui.View):
         button: discord.ui.Button
     ):
         await interaction.response.send_message(
-            "⏳ Ticket será fechado em 10 segundos..."
+            "⏳ Ticket será fechado em 10 segundos...",
+            ephemeral=True
         )
         await asyncio.sleep(10)
         await interaction.channel.delete()
 
 
+# ===============================
+# COG
+# ===============================
+
 class Ticket(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     @app_commands.command(
         name="ticket",
         description="Abrir um ticket de suporte"
+    )
+    @app_commands.describe(
+        motivo="Explique brevemente o motivo do ticket"
     )
     async def ticket(
         self,
@@ -47,7 +60,7 @@ class Ticket(commands.Cog):
             categoria = await guild.create_category("TICKETS")
 
         canal = await guild.create_text_channel(
-            name=f"ticket-{interaction.user.name}",
+            name=f"ticket-{interaction.user.name}".lower(),
             category=categoria,
             overwrites={
                 guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -62,7 +75,7 @@ class Ticket(commands.Cog):
                 f"👤 **Usuário:** {interaction.user.mention}\n"
                 f"📝 **Motivo:** {motivo}\n\n"
                 "🔔 Um administrador irá te atender.\n"
-                "Quando o atendimento terminar, clique no botão abaixo para fechar."
+                "Quando finalizar, clique no botão abaixo para fechar."
             ),
             color=discord.Color.blue()
         )
@@ -70,11 +83,14 @@ class Ticket(commands.Cog):
         await canal.send(embed=embed, view=TicketView())
 
         await interaction.response.send_message(
-            f"📂 Ticket criado em {canal.mention}",
+            f"📂 Ticket criado com sucesso em {canal.mention}",
             ephemeral=True
         )
 
 
+# ===============================
+# SETUP
+# ===============================
+
 async def setup(bot):
     await bot.add_cog(Ticket(bot))
-
