@@ -7,8 +7,10 @@ import threading
 from flask import Flask
 from database import init_db
 
+GUILD_ID = 1447592173913509919
+
 # ===============================
-# SERVIDOR HTTP (RENDER)
+# SERVIDOR WEB (RENDER)
 # ===============================
 
 app = Flask(__name__)
@@ -28,32 +30,27 @@ def run_flask():
 # ===============================
 
 TOKEN = os.getenv("DISCORD_TOKEN")
-GUILD_ID = 1447592173913509919  # <<< SEU SERVER ID
 
-INTENTS = discord.Intents.default()
-INTENTS.members = True
+intents = discord.Intents.default()
+intents.members = True
 
 
-class BotEconomia(commands.Bot):
+class GoldBot(commands.Bot):
     def __init__(self):
         super().__init__(
             command_prefix="!",
-            intents=INTENTS
+            intents=intents
         )
-        self.guild = discord.Object(id=GUILD_ID)
 
     async def setup_hook(self):
         await init_db()
 
+        # ❗ LIMPA COMANDOS GLOBAIS (ISS0 É O PULO DO GATO)
+        self.tree.clear_commands(guild=None)
+
         extensoes = [
             "economia",
-            "x1",
-            "missoes",
-            "compras",
-            "saque",
-            "cacar",
-            "ticket",
-            "rank_saldo"
+            "ticket"
         ]
 
         for ext in extensoes:
@@ -63,16 +60,15 @@ class BotEconomia(commands.Bot):
             except Exception as e:
                 print(f"❌ Erro ao carregar {ext}: {e}")
 
-        # 🔥 LIMPA comandos antigos
-        self.tree.clear_commands(guild=self.guild)
+        # 🔥 SINCRONIZA APENAS NO SEU SERVIDOR
+        guild = discord.Object(id=GUILD_ID)
+        await self.tree.sync(guild=guild)
 
-        # 🚀 SINCRONIZA APENAS NO SEU SERVIDOR (IMEDIATO)
-        await self.tree.sync(guild=self.guild)
         print("🌐 Comandos sincronizados no servidor")
 
 
 async def start_bot():
-    bot = BotEconomia()
+    bot = GoldBot()
     await bot.start(TOKEN)
 
 
