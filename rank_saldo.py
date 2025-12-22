@@ -1,90 +1,122 @@
 import discord
-from discord.ext import commands
 from discord import app_commands
+from discord.ext import commands
 
-from database import pool, ensure_user
+from database import get_user, get_top_users
 
 
 class RankSaldo(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    # =========================
-    # SALDO
-    # =========================
+    # ===============================
+    # /saldo
+    # ===============================
     @app_commands.command(
         name="saldo",
-        description="Ver suas moedas, vitórias, derrotas e streak"
+        description="Mostra seu saldo, vitórias, derrotas e streak"
     )
     async def saldo(self, interaction: discord.Interaction):
-        await ensure_user(interaction.user.id, interaction.user.name)
+        user_id = interaction.user.id
 
-        async with pool.acquire() as conn:
-            user = await conn.fetchrow("""
-                SELECT moedas, vitorias, derrotas,
-                       streak_atual, streak_maximo
-                FROM usuarios
-                WHERE user_id = $1
-            """, interaction.user.id)
+        user = await get_user(user_id)
 
-        streak = user["streak_atual"]
-        multiplicador = min(1.0 + (streak * 0.05), 1.20)
+        if not user:
+            await interaction.response.send_message(
+                "❌ Você ainda não possui registro no sistema.",
+                ephemeral=True
+            )
+            return
+
+        moedas = user["moedas"]
+        vitorias = user["vitorias"]
+        derrotas = user["derrotas"]
+        streak_atual = user["streak_atual"]
+        streak_max = user["streak_max"]
+        multiplicador = user["multiplicador"]
 
         embed = discord.Embed(
-            title="💰 SEU SALDO",
-            description=(
-                f"👤 **Usuário:** {interaction.user.mention}\n\n"
-                f"💰 **Moedas:** {user['moedas']}\n"
-                f"🏆 **Vitórias:** {user['vitorias']}\n"
-                f"💀 **Derrotas:** {user['derrotas']}\n\n"
-                f"🔥 **Streak atual:** {streak}\n"
-                f"⭐ **Streak máximo:** {user['streak_maximo']}\n"
-                f"📈 **Multiplicador:** {multiplicador:.2f}x"
-            ),
+            title="💰 Seu saldo",
             color=discord.Color.green()
+        )
+
+        embed.add_field(
+            name="🪙 Moedas",
+            value=f"{moedas}",
+            inline=False
+        )
+
+        embed.add_field(
+            name="⚔️ Vitórias / ❌ Derrotas",
+            value=f"{vitorias} / {derrotas}",
+            inline=False
+        )
+
+        embed.add_field(
+            name="🔥 Streak atual",
+            value=f"{streak_atual}",
+            inline=True
+        )
+
+        embed.add_field(
+            name="🏆 Streak máximo",
+            value=f"{streak_max}",
+            inline=True
+        )
+
+        embed.add_field(
+            name="📈 Multiplicador",
+            value=f"{multiplicador}x",
+            inline=False
         )
 
         await interaction.response.send_message(embed=embed)
 
-    # =========================
-    # RANK
-    # =========================
+    # ===============================
+    # /rank
+    # ===============================
     @app_commands.command(
         name="rank",
-        description="Ver o ranking dos 10 melhores jogadores"
+        description="Mostra o ranking dos 10 melhores jogadores"
     )
     async def rank(self, interaction: discord.Interaction):
-        async with pool.acquire() as conn:
-            ranking = await conn.fetch("""
-                SELECT user_id, vitorias, streak_atual
-                FROM usuarios
-                ORDER BY vitorias DESC, streak_atual DESC
-                LIMIT 10
-            """)
+        top_users = await get_top_users()
 
-        if not ranking:
+        if not top_users:
             await interaction.response.send_message(
                 "❌ Ainda não há jogadores no ranking.",
                 ephemeral=True
             )
             return
 
-        descricao = ""
-        for i, user in enumerate(ranking, start=1):
-            descricao += (
-                f"**{i}º** <@{user['user_id']}>\n"
-                f"🏆 Vitórias: {user['vitorias']} | "
-                f"🔥 Streak: {user['streak_atual']}\n\n"
-            )
-
         embed = discord.Embed(
-            title="🏆 RANKING GERAL",
-            description=descricao,
+            title="🏆 Ranking de Vitórias",
+            description="Top 10 jogadores do servidor",
             color=discord.Color.gold()
         )
+
+        for posicao, user in enumerate(top_users, start=1):
+            user_id = user["user_id"]
+            vitorias = user["vitorias"]
+            streak = user["streak_atual"]
+
+            try:
+                member = await self.bot.fetch_user(user_id)
+                nome = member.name
+            except:
+                nome = f"Usuário {user_id}"
+
+            embed.add_field(
+                name=f"#{posicao} - {nome}",
+                value=f"⚔️ Vitórias: {vitorias}\n🔥 Streak: {streak}",
+                inline=False
+            )
 
         await interaction.response.send_message(embed=embed)
 
 
-async def setup(bot):
+# ===============================
+# SETUP OBRIGATÓRIO
+# ===============================
+async def setup(bot: commands.Bot):
     await bot.add_cog(RankSaldo(bot))
