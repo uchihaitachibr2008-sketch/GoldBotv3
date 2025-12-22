@@ -10,23 +10,31 @@ ADM_ID = 969976402571063397
 class TicketView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-        self.closed = False  # 🔒 trava
 
     @discord.ui.button(
         label="🔒 Fechar Ticket",
-        style=discord.ButtonStyle.red
+        style=discord.ButtonStyle.red,
+        custom_id="fechar_ticket"
     )
-    async def fechar(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.closed:
-            return
+    async def fechar(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        # Evita erro de interaction expirada
+        await interaction.response.defer(ephemeral=True)
 
-        self.closed = True
-        await interaction.response.send_message(
-            "⏳ Ticket será fechado em 10 segundos...",
+        await interaction.followup.send(
+            "⏳ Ticket será fechado em **10 segundos**...",
             ephemeral=True
         )
+
         await asyncio.sleep(10)
-        await interaction.channel.delete()
+
+        try:
+            await interaction.channel.delete()
+        except Exception as e:
+            print(f"Erro ao deletar ticket: {e}")
 
 
 class Ticket(commands.Cog):
@@ -37,24 +45,33 @@ class Ticket(commands.Cog):
         name="ticket",
         description="Abrir um ticket de suporte"
     )
-    async def ticket(self, interaction: discord.Interaction, motivo: str):
+    @app_commands.describe(
+        motivo="Descreva o motivo do ticket"
+    )
+    async def ticket(
+        self,
+        interaction: discord.Interaction,
+        motivo: str
+    ):
         guild = interaction.guild
-
-        # 🔒 BLOQUEIA DUPLA EXECUÇÃO
-        await interaction.response.defer(ephemeral=True)
 
         categoria = discord.utils.get(guild.categories, name="TICKETS")
         if not categoria:
             categoria = await guild.create_category("TICKETS")
 
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            interaction.user: discord.PermissionOverwrite(read_messages=True),
+        }
+
+        admin = guild.get_member(ADM_ID)
+        if admin:
+            overwrites[admin] = discord.PermissionOverwrite(read_messages=True)
+
         canal = await guild.create_text_channel(
-            name=f"ticket-{interaction.user.id}",
+            name=f"ticket-{interaction.user.name}".lower(),
             category=categoria,
-            overwrites={
-                guild.default_role: discord.PermissionOverwrite(read_messages=False),
-                interaction.user: discord.PermissionOverwrite(read_messages=True),
-                guild.get_member(ADM_ID): discord.PermissionOverwrite(read_messages=True),
-            }
+            overwrites=overwrites
         )
 
         embed = discord.Embed(
@@ -63,20 +80,18 @@ class Ticket(commands.Cog):
                 f"👤 **Usuário:** {interaction.user.mention}\n"
                 f"📝 **Motivo:** {motivo}\n\n"
                 "🔔 Um administrador irá te atender.\n"
-                "Use o botão abaixo para fechar o ticket."
+                "Clique no botão abaixo para fechar o ticket."
             ),
             color=discord.Color.blue()
         )
 
         await canal.send(embed=embed, view=TicketView())
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             f"📂 Ticket criado em {canal.mention}",
             ephemeral=True
         )
 
 
 async def setup(bot):
-    # 🚫 GARANTE QUE NÃO REGISTRA DUAS VEZES
-    if "Ticket" not in bot.cogs:
-        await bot.add_cog(Ticket(bot))
+    await bot.add_cog(Ticket(bot))
