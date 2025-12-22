@@ -9,7 +9,17 @@ from database import init_db
 
 
 # ===============================
-# SERVIDOR HTTP (PARA O RENDER)
+# CONFIGURAÇÕES
+# ===============================
+
+TOKEN = os.getenv("DISCORD_TOKEN")
+
+# ID DO SEU SERVIDOR (GUILD)
+GUILD_ID = 1447592173913509919
+
+
+# ===============================
+# SERVIDOR HTTP (RENDER WEB)
 # ===============================
 
 app = Flask(__name__)
@@ -28,8 +38,6 @@ def run_flask():
 # BOT DISCORD
 # ===============================
 
-TOKEN = os.getenv("DISCORD_TOKEN")
-
 INTENTS = discord.Intents.default()
 INTENTS.members = True
 
@@ -42,6 +50,7 @@ class BotEconomia(commands.Bot):
         )
 
     async def setup_hook(self):
+        # Inicializa banco de dados
         await init_db()
 
         extensoes = [
@@ -62,8 +71,14 @@ class BotEconomia(commands.Bot):
             except Exception as e:
                 print(f"❌ Erro ao carregar {ext}: {e}")
 
-        await self.tree.sync()
-        print("🌐 Comandos sincronizados")
+        # ===============================
+        # SYNC APENAS NO SERVIDOR (IMEDIATO)
+        # ===============================
+        guild = discord.Object(id=GUILD_ID)
+        self.tree.copy_global_to(guild=guild)
+        await self.tree.sync(guild=guild)
+
+        print("🌐 Comandos sincronizados no servidor")
 
 
 async def start_bot():
