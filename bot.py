@@ -2,9 +2,7 @@ import discord
 from discord.ext import commands
 import os
 import asyncio
-import threading
 
-from flask import Flask
 from database import init_db
 
 # ===============================
@@ -16,20 +14,6 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 
 INTENTS = discord.Intents.default()
 INTENTS.members = True
-
-# ===============================
-# SERVIDOR HTTP (RENDER)
-# ===============================
-
-app = Flask(__name__)
-
-@app.route("/")
-def home():
-    return "Bot online"
-
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
 
 # ===============================
 # BOT
@@ -65,9 +49,9 @@ class BotEconomia(commands.Bot):
             except Exception as e:
                 print(f"❌ Erro ao carregar {ext}: {e}")
 
-        # 🔥 REGISTRA SOMENTE NO SERVIDOR
+        # 🔒 Sincroniza APENAS no servidor
         await self.tree.sync(guild=guild)
-        print("🌐 Comandos sincronizados APENAS no servidor")
+        print("🌐 Comandos sincronizados apenas no servidor")
 
     async def on_ready(self):
         print(f"🤖 Bot conectado como {self.user}")
@@ -76,10 +60,9 @@ class BotEconomia(commands.Bot):
 # START
 # ===============================
 
-async def start_bot():
+async def main():
     bot = BotEconomia()
     await bot.start(TOKEN)
 
 if __name__ == "__main__":
-    threading.Thread(target=run_flask).start()
-    asyncio.run(start_bot())
+    asyncio.run(main())
