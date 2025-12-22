@@ -7,19 +7,8 @@ import threading
 from flask import Flask
 from database import init_db
 
-
 # ===============================
-# CONFIGURAÇÕES
-# ===============================
-
-TOKEN = os.getenv("DISCORD_TOKEN")
-
-# ID DO SEU SERVIDOR (GUILD)
-GUILD_ID = 1447592173913509919
-
-
-# ===============================
-# SERVIDOR HTTP (RENDER WEB)
+# SERVIDOR HTTP (RENDER)
 # ===============================
 
 app = Flask(__name__)
@@ -38,6 +27,9 @@ def run_flask():
 # BOT DISCORD
 # ===============================
 
+TOKEN = os.getenv("DISCORD_TOKEN")
+GUILD_ID = 1447592173913509919  # <<< SEU SERVER ID
+
 INTENTS = discord.Intents.default()
 INTENTS.members = True
 
@@ -48,9 +40,9 @@ class BotEconomia(commands.Bot):
             command_prefix="!",
             intents=INTENTS
         )
+        self.guild = discord.Object(id=GUILD_ID)
 
     async def setup_hook(self):
-        # Inicializa banco de dados
         await init_db()
 
         extensoes = [
@@ -71,13 +63,11 @@ class BotEconomia(commands.Bot):
             except Exception as e:
                 print(f"❌ Erro ao carregar {ext}: {e}")
 
-        # ===============================
-        # SYNC APENAS NO SERVIDOR (IMEDIATO)
-        # ===============================
-        guild = discord.Object(id=GUILD_ID)
-        self.tree.copy_global_to(guild=guild)
-        await self.tree.sync(guild=guild)
+        # 🔥 LIMPA comandos antigos
+        self.tree.clear_commands(guild=self.guild)
 
+        # 🚀 SINCRONIZA APENAS NO SEU SERVIDOR (IMEDIATO)
+        await self.tree.sync(guild=self.guild)
         print("🌐 Comandos sincronizados no servidor")
 
 
