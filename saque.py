@@ -14,6 +14,9 @@ class Saque(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # ===============================
+    # /saque
+    # ===============================
     @app_commands.command(
         name="saque",
         description="Solicitar saque de moedas (1 moeda = R$ 0,10)"
@@ -22,7 +25,6 @@ class Saque(commands.Cog):
         self,
         interaction: discord.Interaction,
         valor: int,
-        nome: str,
         chavepix: str
     ):
         if valor <= 0:
@@ -36,7 +38,7 @@ class Saque(commands.Cog):
 
         async with pool.acquire() as conn:
             saldo = await conn.fetchval(
-                "SELECT moedas FROM usuarios WHERE user_id = $1",
+                "SELECT moedas FROM users WHERE user_id = $1",
                 interaction.user.id
             )
 
@@ -66,20 +68,19 @@ class Saque(commands.Cog):
 
         async with pool.acquire() as conn:
             saque_id = await conn.fetchval("""
-                INSERT INTO saques (user_id, valor_moedas, nome, chave_pix, status)
-                VALUES ($1, $2, $3, $4, 'pendente')
+                INSERT INTO saques (user_id, moedas, chave_pix, status)
+                VALUES ($1, $2, $3, 'pendente')
                 RETURNING id
-            """, interaction.user.id, valor, nome, chavepix)
+            """, interaction.user.id, valor, chavepix)
 
         embed = discord.Embed(
             title="💸 SOLICITAÇÃO DE SAQUE",
             description=(
                 f"🆔 **ID do Saque:** `{saque_id}`\n\n"
                 f"👤 **Usuário:** {interaction.user.mention}\n"
-                f"📛 **Nome:** {nome}\n"
                 f"🔑 **Chave Pix:** `{chavepix}`\n\n"
                 f"💰 **Moedas:** {valor}\n"
-                f"💵 **Valor a pagar:** R$ {valor_reais:.2f}\n\n"
+                f"💵 **Valor:** R$ {valor_reais:.2f}\n\n"
                 "⚠️ Após o pagamento, o ADM deve usar:\n"
                 "`/confirmarsaque id`"
             ),
@@ -92,6 +93,9 @@ class Saque(commands.Cog):
             ephemeral=True
         )
 
+    # ===============================
+    # /confirmarsaque (ADM)
+    # ===============================
     @app_commands.command(
         name="confirmarsaque",
         description="(ADM) Confirmar saque pago"
@@ -121,28 +125,30 @@ class Saque(commands.Cog):
             )
             return
 
-        await remove_coins(saque["user_id"], saque["valor_moedas"])
+        await remove_coins(saque["user_id"], saque["moedas"])
 
         async with pool.acquire() as conn:
             await conn.execute("""
-                UPDATE saques SET status = 'confirmado'
+                UPDATE saques
+                SET status = 'confirmado'
                 WHERE id = $1
             """, id)
 
-        canal = interaction.channel
-        await canal.send("✅ Saque confirmado! Canal será fechado em 10 segundos.")
+        await interaction.channel.send(
+            "✅ Saque confirmado! Canal será fechado em 10 segundos."
+        )
 
         hist = self.bot.get_channel(CANAL_HISTORICO_SAQUE)
         if hist:
             await hist.send(
                 f"💸 **SAQUE CONFIRMADO**\n"
                 f"Usuário: <@{saque['user_id']}>\n"
-                f"Moedas: {saque['valor_moedas']}\n"
+                f"Moedas: {saque['moedas']}\n"
                 f"Pix: `{saque['chave_pix']}`"
             )
 
         await asyncio.sleep(10)
-        await canal.delete()
+        await interaction.channel.delete()
 
 
 async def setup(bot):
