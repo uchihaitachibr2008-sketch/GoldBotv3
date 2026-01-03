@@ -4,6 +4,7 @@ import os
 import asyncio
 
 from database import init_db
+from ticket import TicketView  # VIEW PERSISTENTE DO TICKET
 
 GUILD_ID = 1447592173913509919
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -20,8 +21,13 @@ class BotEconomia(commands.Bot):
         )
 
     async def setup_hook(self):
+        # Inicializa banco
         await init_db()
 
+        # 🔒 REGISTRA VIEW PERSISTENTE (EVITA DUPLICAÇÃO DO TICKET)
+        self.add_view(TicketView())
+
+        # Cogs / extensões
         extensoes = [
             "economia",
             "x1",
@@ -41,6 +47,11 @@ class BotEconomia(commands.Bot):
                 print(f"❌ ERRO em {ext}: {e}")
 
         guild = discord.Object(id=GUILD_ID)
+
+        # 🧹 LIMPA COMANDOS GLOBAIS ANTIGOS (IMPORTANTE)
+        await self.tree.clear_commands(guild=None)
+
+        # 🌐 SINCRONIZA COMANDOS SOMENTE NA GUILD
         synced = await self.tree.sync(guild=guild)
         print(f"🌐 {len(synced)} comandos sincronizados")
 
