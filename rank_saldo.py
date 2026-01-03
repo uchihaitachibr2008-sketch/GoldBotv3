@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from database import get_user, get_top_users
+from database import pool, ensure_user
 
 
 class RankSaldo(commands.Cog):
@@ -14,14 +14,21 @@ class RankSaldo(commands.Cog):
     # ===============================
     @app_commands.command(
         name="saldo",
-        description="Mostra seu saldo, vitórias, derrotas e streak"
+        description="Mostra seu saldo e estatísticas"
     )
     async def saldo(self, interaction: discord.Interaction):
-        user = await get_user(interaction.user.id)
+        await ensure_user(interaction.user.id, interaction.user.name)
+
+        async with pool.acquire() as conn:
+            user = await conn.fetchrow("""
+                SELECT moedas, vitorias, derrotas, streak_atual, streak_max
+                FROM users
+                WHERE user_id = $1
+            """, interaction.user.id)
 
         if not user:
             await interaction.response.send_message(
-                "❌ Você ainda não possui registro no sistema.",
+                "❌ Usuário não encontrado.",
                 ephemeral=True
             )
             return
@@ -39,23 +46,24 @@ class RankSaldo(commands.Cog):
         )
         embed.add_field(name="🔥 Streak Atual", value=user["streak_atual"], inline=True)
         embed.add_field(name="🏆 Streak Máximo", value=user["streak_max"], inline=True)
-        embed.add_field(
-            name="📈 Multiplicador",
-            value=f'{user["multiplicador"]}x',
-            inline=False
-        )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     # ===============================
     # /rank
     # ===============================
     @app_commands.command(
         name="rank",
-        description="Mostra o ranking dos 10 jogadores com mais vitórias"
+        description="Ranking dos 10 jogadores com mais vitórias"
     )
     async def rank(self, interaction: discord.Interaction):
-        ranking = await get_top_users()
+        async with pool.acquire() as conn:
+            ranking = await conn.fetch("""
+                SELECT user_id, vitorias, streak_atual
+                FROM users
+                ORDER BY vitorias DESC
+                LIMIT 10
+            """)
 
         if not ranking:
             await interaction.response.send_message(
@@ -70,15 +78,15 @@ class RankSaldo(commands.Cog):
         )
 
         for posicao, user in enumerate(ranking, start=1):
-            try:
-                member = await self.bot.fetch_user(user["user_id"])
-                nome = member.name
-            except:
-                nome = f'Usuário {user["user_id"]}'
+            member = self.bot.get_user(user["user_id"])
+            nome = member.name if member else f'Usuário {user["user_id"]}'
 
             embed.add_field(
                 name=f"#{posicao} - {nome}",
-                value=f'⚔️ Vitórias: {user["vitorias"]}\n🔥 Streak: {user["streak_atual"]}',
+                value=(
+                    f"⚔️ Vitórias: {user['vitorias']}\n"
+                    f"🔥 Streak Atual: {user['streak_atual']}"
+                ),
                 inline=False
             )
 
