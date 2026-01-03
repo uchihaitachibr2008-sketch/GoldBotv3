@@ -7,9 +7,6 @@ GUILD_ID = 1447592173913509919
 ADM_ID = 969976402571063397
 
 
-# ===============================
-# VIEW PERSISTENTE
-# ===============================
 class TicketView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -17,77 +14,54 @@ class TicketView(discord.ui.View):
     @discord.ui.button(
         label="🔒 Fechar Ticket",
         style=discord.ButtonStyle.red,
-        custom_id="fechar_ticket"
+        custom_id="ticket_fechar"
     )
-    async def fechar(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
+    async def fechar(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
-
         await interaction.followup.send(
             "⏳ Ticket será fechado em **10 segundos**...",
             ephemeral=True
         )
-
         await asyncio.sleep(10)
-
-        try:
-            await interaction.channel.delete()
-        except Exception as e:
-            print(f"Erro ao deletar ticket: {e}")
+        await interaction.channel.delete()
 
 
-# ===============================
-# COG
-# ===============================
 class Ticket(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # REGISTRA VIEW PERSISTENTE
-        bot.add_view(TicketView())
+        self.bot.add_view(TicketView())  # ← REGISTRO PERSISTENTE
 
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
-    @app_commands.command(
-        name="ticket",
-        description="Abrir um ticket de suporte"
-    )
-    @app_commands.describe(
-        motivo="Descreva o motivo do ticket"
-    )
-    async def ticket(
-        self,
-        interaction: discord.Interaction,
-        motivo: str
-    ):
+    @app_commands.command(name="ticket", description="Abrir um ticket de suporte")
+    @app_commands.describe(motivo="Descreva o motivo do ticket")
+    async def ticket(self, interaction: discord.Interaction, motivo: str):
+
         guild = interaction.guild
 
+        # 🔒 VERIFICA SE JÁ EXISTE TICKET
         categoria = discord.utils.get(guild.categories, name="TICKETS")
+        if categoria:
+            for canal in categoria.text_channels:
+                if canal.name == f"ticket-{interaction.user.id}":
+                    await interaction.response.send_message(
+                        f"❌ Você já possui um ticket aberto: {canal.mention}",
+                        ephemeral=True
+                    )
+                    return
+
         if not categoria:
             categoria = await guild.create_category("TICKETS")
 
-        # Evita ticket duplicado
-        nome_canal = f"ticket-{interaction.user.id}"
-        existente = discord.utils.get(guild.text_channels, name=nome_canal)
-        if existente:
-            await interaction.response.send_message(
-                f"❌ Você já possui um ticket aberto: {existente.mention}",
-                ephemeral=True
-            )
-            return
-
         overwrites = {
-            guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            interaction.user: discord.PermissionOverwrite(read_messages=True),
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            interaction.user: discord.PermissionOverwrite(view_channel=True),
         }
 
         admin = guild.get_member(ADM_ID)
         if admin:
-            overwrites[admin] = discord.PermissionOverwrite(read_messages=True)
+            overwrites[admin] = discord.PermissionOverwrite(view_channel=True)
 
         canal = await guild.create_text_channel(
-            name=nome_canal,
+            name=f"ticket-{interaction.user.id}",
             category=categoria,
             overwrites=overwrites
         )
@@ -106,7 +80,7 @@ class Ticket(commands.Cog):
         await canal.send(embed=embed, view=TicketView())
 
         await interaction.response.send_message(
-            f"📂 Ticket criado em {canal.mention}",
+            f"✅ Ticket criado em {canal.mention}",
             ephemeral=True
         )
 
