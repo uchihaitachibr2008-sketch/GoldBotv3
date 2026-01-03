@@ -77,3 +77,4 @@ async def get_pool():
     if not pool:
         raise RuntimeError("Banco de dados não inicializado")
     return pool
+
