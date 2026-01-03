@@ -41,8 +41,6 @@ class BotEconomia(commands.Bot):
                 print(f"❌ ERRO em {ext}: {e}")
 
         guild = discord.Object(id=GUILD_ID)
-
-        # 🔥 sincroniza TUDO no servidor
         synced = await self.tree.sync(guild=guild)
         print(f"🌐 {len(synced)} comandos sincronizados")
 
