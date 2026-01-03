@@ -4,35 +4,29 @@ from discord.ext import commands
 from datetime import date
 
 from database import pool, ensure_user
-from economia import add_coins, get_wallet
+from economia import add_coins
 
 # ===============================
-# CONFIGURAÇÕES
+# MISSÕES DISPONÍVEIS
 # ===============================
 
 MISSOES = [
-    # FÁCEIS
-    {"id": 1, "desc": "Ganhe 1 x1", "reward": 5},
-    {"id": 2, "desc": "Participe de 2 x1", "reward": 5},
+    {"id": 1, "desc": "Ganhe 1 X1", "reward": 5},
+    {"id": 2, "desc": "Participe de 2 X1", "reward": 5},
     {"id": 3, "desc": "Use o comando /saldo", "reward": 3},
     {"id": 4, "desc": "Use o comando /rank", "reward": 3},
     {"id": 5, "desc": "Fique online por 1 hora", "reward": 5},
-
-    # MÉDIAS
-    {"id": 6, "desc": "Ganhe 3 x1", "reward": 10},
-    {"id": 7, "desc": "Participe de 5 x1", "reward": 10},
-    {"id": 8, "desc": "Chegue a streak 2", "reward": 12},
-    {"id": 9, "desc": "Ganhe um x1 apostando 50 moedas", "reward": 15},
-
-    # DIFÍCEIS
-    {"id": 10, "desc": "Ganhe 5 x1", "reward": 20},
-    {"id": 11, "desc": "Chegue a streak 3", "reward": 25},
-    {"id": 12, "desc": "Ganhe um x1 com multiplicador ativo", "reward": 25},
-    {"id": 13, "desc": "Complete uma caça com sucesso", "reward": 30},
+    {"id": 6, "desc": "Ganhe 3 X1", "reward": 10},
+    {"id": 7, "desc": "Chegue a streak 2", "reward": 12},
+    {"id": 8, "desc": "Ganhe um X1 apostando 50 moedas", "reward": 15},
+    {"id": 9, "desc": "Ganhe 5 X1", "reward": 20},
+    {"id": 10, "desc": "Complete uma caça", "reward": 30},
 ]
 
+MAX_MISSOES_DIA = 4
+
 # ===============================
-# COG MISSÕES
+# COG
 # ===============================
 
 class Missoes(commands.Cog):
@@ -41,97 +35,72 @@ class Missoes(commands.Cog):
 
     @app_commands.command(
         name="missoes",
-        description="Veja suas missões diárias e progresso"
+        description="Veja suas missões diárias"
     )
     async def missoes(self, interaction: discord.Interaction):
         await ensure_user(interaction.user.id, interaction.user.name)
 
-        today = date.today()
-
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow("""
-                SELECT last_reset
-                FROM missao_reset
-                WHERE user_id = $1
-            """, interaction.user.id)
-
-            if not row or row["last_reset"] != today:
-                await conn.execute("""
-                    DELETE FROM missoes_usuarios
-                    WHERE user_id = $1
-                """, interaction.user.id)
-
-                await conn.execute("""
-                    INSERT INTO missao_reset (user_id, last_reset)
-                    VALUES ($1, $2)
-                    ON CONFLICT (user_id)
-                    DO UPDATE SET last_reset = $2
-                """, interaction.user.id, today)
+        hoje = date.today()
 
         async with pool.acquire() as conn:
             feitas = await conn.fetch("""
-                SELECT mission_id
-                FROM missoes_usuarios
-                WHERE user_id = $1
-            """, interaction.user.id)
+                SELECT missao
+                FROM missoes
+                WHERE user_id = $1 AND data = $2
+            """, interaction.user.id, hoje)
 
-        feitas_ids = {m["mission_id"] for m in feitas}
+        feitas_ids = {row["missao"] for row in feitas}
 
         embed = discord.Embed(
-            title="📜 MISSÕES DIÁRIAS",
-            description="Você pode completar **4 missões por dia**.\n"
-                        "Cada missão só pode ser feita **1 vez**.\n\n",
+            title="📜 Missões Diárias",
+            description=f"Você pode concluir até **{MAX_MISSOES_DIA} missões por dia**.\n",
             color=discord.Color.green()
         )
 
-        count = 0
-        for missao in MISSOES:
-            if count >= 4:
-                break
+        for missao in MISSOES[:MAX_MISSOES_DIA]:
+            status = "✅ Concluída" if missao["id"] in feitas_ids else "❌ Não concluída"
 
-            status = "✅ Concluída" if missao["id"] in feitas_ids else "❌ Não feita"
             embed.add_field(
-                name=f"{missao['desc']}",
-                value=f"Recompensa: **{missao['reward']} moedas**\nStatus: {status}",
+                name=missao["desc"],
+                value=f"💰 Recompensa: **{missao['reward']} moedas**\n{status}",
                 inline=False
             )
-            count += 1
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     # ===============================
-    # COMANDO INTERNO PARA CONCLUIR MISSÃO
-    # (chamado por outros sistemas)
+    # FUNÇÃO INTERNA (CHAMADA POR OUTROS COGS)
     # ===============================
 
-    async def completar_missao(self, user_id: int, mission_id: int):
-        missao = next((m for m in MISSOES if m["id"] == mission_id), None)
-        if not missao:
-            return
+    async def completar_missao(self, user_id: int, missao_id: int):
+        hoje = date.today()
 
         async with pool.acquire() as conn:
+            total = await conn.fetchval("""
+                SELECT COUNT(*)
+                FROM missoes
+                WHERE user_id = $1 AND data = $2
+            """, user_id, hoje)
+
+            if total >= MAX_MISSOES_DIA:
+                return
+
             feita = await conn.fetchrow("""
-                SELECT 1 FROM missoes_usuarios
-                WHERE user_id = $1 AND mission_id = $2
-            """, user_id, mission_id)
+                SELECT 1 FROM missoes
+                WHERE user_id = $1 AND missao = $2 AND data = $3
+            """, user_id, missao_id, hoje)
 
             if feita:
                 return
 
-            total = await conn.fetchval("""
-                SELECT COUNT(*) FROM missoes_usuarios
-                WHERE user_id = $1
-            """, user_id)
-
-            if total >= 4:
-                return
-
             await conn.execute("""
-                INSERT INTO missoes_usuarios (user_id, mission_id)
-                VALUES ($1, $2)
-            """, user_id, mission_id)
+                INSERT INTO missoes (user_id, missao, concluida, data)
+                VALUES ($1, $2, TRUE, $3)
+            """, user_id, missao_id, hoje)
 
-        await add_coins(user_id, missao["reward"])
+        missao = next((m for m in MISSOES if m["id"] == missao_id), None)
+        if missao:
+            await add_coins(user_id, missao["reward"])
 
 
 async def setup(bot):
