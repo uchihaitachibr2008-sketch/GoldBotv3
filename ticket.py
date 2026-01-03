@@ -7,6 +7,9 @@ GUILD_ID = 1447592173913509919
 ADM_ID = 969976402571063397
 
 
+# ===============================
+# VIEW PERSISTENTE
+# ===============================
 class TicketView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -21,7 +24,6 @@ class TicketView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button
     ):
-        # Evita erro de interaction expirada
         await interaction.response.defer(ephemeral=True)
 
         await interaction.followup.send(
@@ -37,10 +39,16 @@ class TicketView(discord.ui.View):
             print(f"Erro ao deletar ticket: {e}")
 
 
+# ===============================
+# COG
+# ===============================
 class Ticket(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # REGISTRA VIEW PERSISTENTE
+        bot.add_view(TicketView())
 
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     @app_commands.command(
         name="ticket",
         description="Abrir um ticket de suporte"
@@ -59,6 +67,16 @@ class Ticket(commands.Cog):
         if not categoria:
             categoria = await guild.create_category("TICKETS")
 
+        # Evita ticket duplicado
+        nome_canal = f"ticket-{interaction.user.id}"
+        existente = discord.utils.get(guild.text_channels, name=nome_canal)
+        if existente:
+            await interaction.response.send_message(
+                f"❌ Você já possui um ticket aberto: {existente.mention}",
+                ephemeral=True
+            )
+            return
+
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
             interaction.user: discord.PermissionOverwrite(read_messages=True),
@@ -69,7 +87,7 @@ class Ticket(commands.Cog):
             overwrites[admin] = discord.PermissionOverwrite(read_messages=True)
 
         canal = await guild.create_text_channel(
-            name=f"ticket-{interaction.user.name}".lower(),
+            name=nome_canal,
             category=categoria,
             overwrites=overwrites
         )
@@ -80,7 +98,7 @@ class Ticket(commands.Cog):
                 f"👤 **Usuário:** {interaction.user.mention}\n"
                 f"📝 **Motivo:** {motivo}\n\n"
                 "🔔 Um administrador irá te atender.\n"
-                "Clique no botão abaixo para fechar o ticket."
+                "Use o botão abaixo para fechar o ticket."
             ),
             color=discord.Color.blue()
         )
